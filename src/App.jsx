@@ -414,6 +414,8 @@ export default function App() {
 
   const updateSetupLayer = () => {
     const scene = sceneRef.current;
+    if (!scene) return; // Safety check
+    
     const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
     
     setupCubesRef.current.forEach(cube => {
@@ -423,9 +425,11 @@ export default function App() {
     });
     setupCubesRef.current.clear();
     
+    let count = 0; // Debug counter
     for (let x = 0; x < gridSize; x++) {
       for (let y = 0; y < gridSize; y++) {
         if (gridRef.current[x][y] === 1) {
+          count++;
           let color = 0xffffff;
           if (cubeColorRef.current === 'blue') {
             color = 0x0088ff;
@@ -444,6 +448,7 @@ export default function App() {
         }
       }
     }
+    console.log(`Setup layer updated: ${count} cubes created`);
   };
 
   const updateCameraPosition = () => {
@@ -581,6 +586,8 @@ export default function App() {
     const pattern = patterns[patternKey];
     if (!pattern) return;
     
+    console.log(`Loading pattern: ${pattern.name}`, pattern);
+    
     gridRef.current = initializeGrid();
     
     const offsetX = Math.floor(gridSize / 2) - 20;
@@ -594,6 +601,7 @@ export default function App() {
       }
     });
     
+    console.log(`Pattern loaded with ${pattern.cells.length} cells`);
     updateSetupLayer();
   };
 
@@ -687,7 +695,9 @@ export default function App() {
     topLightRef.current = topLight;
 
     gridRef.current = initializeGrid();
+    console.log('Scene initialized, grid created');
     updateSetupLayer();
+    console.log('Initial setup layer created');
 
     const canvas = renderer.domElement;
     canvas.addEventListener('mousedown', handleMouseDown);
