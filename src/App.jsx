@@ -32,6 +32,8 @@ export default function App() {
   const pointLightRef = useRef(null);
   const pointLight2Ref = useRef(null);
   const topLightRef = useRef(null);
+  const ambientLightRef = useRef(null);
+  const directionalLightRef = useRef(null);
   const autoRotateRef = useRef(false);
   const highlightNewRef = useRef(false);
   const cubeColorRef = useRef('white');
@@ -401,8 +403,8 @@ export default function App() {
           
           const material = new THREE.MeshStandardMaterial({ 
             color: color,
-            metalness: 0.3,
-            roughness: 0.4
+            metalness: 0.1,  // Less metallic = brighter
+            roughness: 0.6   // Less rough = more reflective
           });
           
           const cube = new THREE.Mesh(geometry, material);
@@ -441,8 +443,8 @@ export default function App() {
           
           const material = new THREE.MeshStandardMaterial({ 
             color: color,
-            metalness: 0.3,
-            roughness: 0.4
+            metalness: 0.1,  // Less metallic = brighter
+            roughness: 0.6   // Less rough = more reflective
           });
           
           const cube = new THREE.Mesh(geometry, material);
@@ -461,6 +463,10 @@ export default function App() {
     const camera = cameraRef.current;
     const { theta, phi } = cameraAngleRef.current;
     const distance = cameraDistanceRef.current;
+    
+    // Always center on middle of current z-height
+    const targetZ = (generationRef.current / 2) * 5;
+    cameraTargetRef.current.z = targetZ;
     const target = cameraTargetRef.current;
     
     camera.position.x = target.x + distance * Math.sin(phi) * Math.cos(theta);
@@ -641,7 +647,13 @@ export default function App() {
 
   useEffect(() => {
     lightIntensityRef.current = lightIntensity;
-    // Update all light intensities (point lights only, ambient stays constant)
+    // Update ALL light intensities with brightness slider
+    if (ambientLightRef.current) {
+      ambientLightRef.current.intensity = 1.2 * lightIntensity;
+    }
+    if (directionalLightRef.current) {
+      directionalLightRef.current.intensity = 0.6 * lightIntensity;
+    }
     if (pointLightRef.current) {
       pointLightRef.current.intensity = 0.5 * lightIntensity;
     }
@@ -688,20 +700,27 @@ export default function App() {
 
     raycasterRef.current = new THREE.Raycaster();
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Much brighter ambient
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); // Even brighter
     scene.add(ambientLight);
+    ambientLightRef.current = ambientLight;
+    
+    // Add directional light for better overall brightness
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    directionalLight.position.set(100, 100, 100);
+    scene.add(directionalLight);
+    directionalLightRef.current = directionalLight;
 
-    const pointLight = new THREE.PointLight(0xffffff, 0.5, 4000); // Reduced from 1.5
+    const pointLight = new THREE.PointLight(0xffffff, 0.5, 4000);
     pointLight.position.set(0, 0, 0);
     scene.add(pointLight);
     pointLightRef.current = pointLight;
 
-    const pointLight2 = new THREE.PointLight(0xffffff, 0.3, 3000); // Reduced from 1.0
+    const pointLight2 = new THREE.PointLight(0xffffff, 0.3, 3000);
     pointLight2.position.set(0, 0, 100);
     scene.add(pointLight2);
     pointLight2Ref.current = pointLight2;
 
-    const topLight = new THREE.PointLight(0xffffff, 0.2, 5000); // Reduced from 0.5
+    const topLight = new THREE.PointLight(0xffffff, 0.2, 5000);
     topLight.position.set(0, 0, 250);
     scene.add(topLight);
     topLightRef.current = topLight;
@@ -749,10 +768,7 @@ export default function App() {
         }
         
         addGenerationLayer(gridRef.current, generationRef.current);
-        
-        const targetZ = (generationRef.current / 2) * 5; // 5x scale
-        cameraTargetRef.current.z = targetZ;
-        updateCameraPosition();
+        updateCameraPosition(); // This now handles centering on z-height
         
         if (pointLightRef.current) {
           const currentGen = generationRef.current;
@@ -888,11 +904,11 @@ export default function App() {
   return (
     <div className="w-full h-screen bg-black flex flex-col">
       <div className="bg-gray-800 p-2 border-b border-gray-600">
-        <h1 className="text-xl font-bold text-gray-200 mb-1" style={{fontFamily: "'Press Start 2P', monospace"}}>
-          STRATA EDITION
+        <h1 className="text-lg font-bold text-gray-200 mb-1" style={{fontFamily: "'Press Start 2P', monospace", lineHeight: "1.5"}}>
+          Conway's Game of Life: Strata Edition
         </h1>
         <p className="text-gray-400 text-xs mb-2">
-          Conway's Game of Life • Each generation preserved as a permanent layer
+          Each generation preserved as a permanent layer
         </p>
         
         {isSetupMode ? (
