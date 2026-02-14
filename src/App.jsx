@@ -14,6 +14,7 @@ export default function App() {
   const [highlightNew, setHighlightNew] = useState(false);
   const [lightPosition, setLightPosition] = useState('current');
   const [lightIntensity, setLightIntensity] = useState(1.5);
+  const [cubeSize, setCubeSize] = useState(1.0); // 0.5 to 2.0
   
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -36,6 +37,7 @@ export default function App() {
   const cubeColorRef = useRef('white');
   const lightPositionRef = useRef('current');
   const lightIntensityRef = useRef(1.5);
+  const cubeSizeRef = useRef(1.0);
   
   const isDraggingRef = useRef(false);
   const isPanningRef = useRef(false);
@@ -372,7 +374,8 @@ export default function App() {
 
   const addGenerationLayer = (grid, z) => {
     const scene = sceneRef.current;
-    const geometry = new THREE.BoxGeometry(5, 5, 5); // MUCH BIGGER - was 0.95
+    const size = 4.5 * cubeSizeRef.current; // Base 4.5 leaves 0.5 gap at scale 1.0
+    const geometry = new THREE.BoxGeometry(size, size, size);
     const isNewestLayer = z === generationRef.current;
     
     for (let x = 0; x < gridSize; x++) {
@@ -403,7 +406,7 @@ export default function App() {
           });
           
           const cube = new THREE.Mesh(geometry, material);
-          cube.position.set(x - gridSize / 2, y - gridSize / 2, z);
+          cube.position.set((x - gridSize / 2) * 5, (y - gridSize / 2) * 5, z * 5); // Space by 5
           cube.userData = { generation: z };
           scene.add(cube);
           cubesRef.current.push(cube);
@@ -416,7 +419,8 @@ export default function App() {
     const scene = sceneRef.current;
     if (!scene) return; // Safety check
     
-    const geometry = new THREE.BoxGeometry(5, 5, 5); // MUCH BIGGER - was 0.95
+    const size = 4.5 * cubeSizeRef.current; // Base 4.5 leaves 0.5 gap
+    const geometry = new THREE.BoxGeometry(size, size, size);
     
     setupCubesRef.current.forEach(cube => {
       cube.geometry.dispose();
@@ -442,7 +446,7 @@ export default function App() {
           });
           
           const cube = new THREE.Mesh(geometry, material);
-          cube.position.set(x - gridSize / 2, y - gridSize / 2, 0);
+          cube.position.set((x - gridSize / 2) * 5, (y - gridSize / 2) * 5, 0); // Space by 5
           scene.add(cube);
           setupCubesRef.current.set(`${x},${y}`, cube);
         }
@@ -466,21 +470,21 @@ export default function App() {
   };
 
   const setView = (view) => {
-    const targetZ = generationRef.current / 2;
+    const targetZ = (generationRef.current / 2) * 5; // 5x scale
     cameraTargetRef.current.set(0, 0, targetZ);
     
     switch(view) {
       case 'top':
-        cameraAngleRef.current = { theta: 0, phi: 0.01 };
+        cameraAngleRef.current = { theta: 0, phi: 0.01 }; // Look straight down
         break;
       case 'front':
-        cameraAngleRef.current = { theta: 0, phi: Math.PI / 2 };
+        cameraAngleRef.current = { theta: 0, phi: Math.PI / 2 }; // Look from Y axis
         break;
       case 'left':
-        cameraAngleRef.current = { theta: Math.PI / 2, phi: Math.PI / 2 };
+        cameraAngleRef.current = { theta: -Math.PI / 2, phi: Math.PI / 2 }; // Look from -X axis
         break;
       case 'right':
-        cameraAngleRef.current = { theta: -Math.PI / 2, phi: Math.PI / 2 };
+        cameraAngleRef.current = { theta: Math.PI / 2, phi: Math.PI / 2 }; // Look from +X axis
         break;
       case 'free':
       default:
@@ -508,7 +512,7 @@ export default function App() {
       const deltaX = event.clientX - previousMouseRef.current.x;
       const deltaY = event.clientY - previousMouseRef.current.y;
       
-      const panSpeed = 0.5;
+      const panSpeed = 2.5; // 5x scale
       const camera = cameraRef.current;
       const right = new THREE.Vector3();
       const up = new THREE.Vector3();
@@ -550,7 +554,7 @@ export default function App() {
   const handleWheel = (event) => {
     event.preventDefault();
     cameraDistanceRef.current += event.deltaY * 0.3;
-    cameraDistanceRef.current = Math.max(30, Math.min(2000, cameraDistanceRef.current));
+    cameraDistanceRef.current = Math.max(150, Math.min(10000, cameraDistanceRef.current)); // 5x scale
     updateCameraPosition();
   };
 
@@ -637,17 +641,25 @@ export default function App() {
 
   useEffect(() => {
     lightIntensityRef.current = lightIntensity;
-    // Update all light intensities
+    // Update all light intensities (point lights only, ambient stays constant)
     if (pointLightRef.current) {
-      pointLightRef.current.intensity = lightIntensity;
+      pointLightRef.current.intensity = 0.5 * lightIntensity;
     }
     if (pointLight2Ref.current) {
-      pointLight2Ref.current.intensity = lightIntensity * 0.67;
+      pointLight2Ref.current.intensity = 0.3 * lightIntensity;
     }
     if (topLightRef.current) {
-      topLightRef.current.intensity = lightIntensity * 0.33;
+      topLightRef.current.intensity = 0.2 * lightIntensity;
     }
   }, [lightIntensity]);
+
+  useEffect(() => {
+    cubeSizeRef.current = cubeSize;
+    // Rebuild cubes when size changes
+    if (isSetupMode && sceneRef.current) {
+      updateSetupLayer();
+    }
+  }, [cubeSize, isSetupMode]);
 
   useEffect(() => {
     if (isSetupMode && sceneRef.current) {
@@ -676,37 +688,23 @@ export default function App() {
 
     raycasterRef.current = new THREE.Raycaster();
 
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Much brighter ambient
     scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(0xffffff, 1.5, 800);
+    const pointLight = new THREE.PointLight(0xffffff, 0.5, 4000); // Reduced from 1.5
     pointLight.position.set(0, 0, 0);
     scene.add(pointLight);
     pointLightRef.current = pointLight;
 
-    const pointLight2 = new THREE.PointLight(0xffffff, 1.0, 600);
-    pointLight2.position.set(0, 0, 20);
+    const pointLight2 = new THREE.PointLight(0xffffff, 0.3, 3000); // Reduced from 1.0
+    pointLight2.position.set(0, 0, 100);
     scene.add(pointLight2);
     pointLight2Ref.current = pointLight2;
 
-    const topLight = new THREE.PointLight(0xffffff, 0.5, 1000);
-    topLight.position.set(0, 0, 50);
+    const topLight = new THREE.PointLight(0xffffff, 0.2, 5000); // Reduced from 0.5
+    topLight.position.set(0, 0, 250);
     scene.add(topLight);
     topLightRef.current = topLight;
-    
-    // Add a test cube at origin to verify scene is rendering
-    const testGeometry = new THREE.BoxGeometry(10, 10, 10);
-    const testMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // RED
-    const testCube = new THREE.Mesh(testGeometry, testMaterial);
-    testCube.position.set(0, 0, 0);
-    scene.add(testCube);
-    console.log('Added red test cube at origin (0, 0, 0)');
-    
-    // Add grid helper
-    const gridHelper = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
-    gridHelper.rotation.x = Math.PI / 2;
-    scene.add(gridHelper);
-    console.log('Added grid helper');
 
     gridRef.current = initializeGrid();
     console.log('Scene initialized, grid created');
@@ -752,18 +750,18 @@ export default function App() {
         
         addGenerationLayer(gridRef.current, generationRef.current);
         
-        const targetZ = generationRef.current / 2;
+        const targetZ = (generationRef.current / 2) * 5; // 5x scale
         cameraTargetRef.current.z = targetZ;
         updateCameraPosition();
         
         if (pointLightRef.current) {
           const currentGen = generationRef.current;
           if (lightPositionRef.current === 'current') {
-            pointLightRef.current.position.z = currentGen;
+            pointLightRef.current.position.z = currentGen * 5; // 5x scale
           } else if (lightPositionRef.current === 'center') {
-            pointLightRef.current.position.z = currentGen / 2;
+            pointLightRef.current.position.z = (currentGen / 2) * 5; // 5x scale
           } else if (lightPositionRef.current === 'top') {
-            pointLightRef.current.position.z = currentGen + 10;
+            pointLightRef.current.position.z = (currentGen + 10) * 5; // 5x scale
           }
         }
       }
@@ -889,12 +887,12 @@ export default function App() {
 
   return (
     <div className="w-full h-screen bg-black flex flex-col">
-      <div className="bg-gray-900 p-4 border-b border-gray-700">
-        <h1 className="text-3xl font-bold text-white mb-2">
-          Conway's Game of Life: Strata Edition
+      <div className="bg-gray-800 p-2 border-b border-gray-600">
+        <h1 className="text-xl font-bold text-gray-200 mb-1" style={{fontFamily: "'Press Start 2P', monospace"}}>
+          STRATA EDITION
         </h1>
-        <p className="text-gray-300 text-sm mb-4">
-          Each generation is preserved as a permanent layer, creating a complete history of cellular evolution.
+        <p className="text-gray-400 text-xs mb-2">
+          Conway's Game of Life • Each generation preserved as a permanent layer
         </p>
         
         {isSetupMode ? (
@@ -961,7 +959,7 @@ export default function App() {
             )}
             
             <div className="flex flex-wrap gap-3 items-center">
-              <label className="flex items-center gap-2 text-white cursor-pointer bg-blue-600 px-4 py-2 rounded font-semibold">
+              <label className="flex items-center gap-2 text-white cursor-pointer bg-gray-600 px-4 py-2 rounded font-semibold">
                 <input
                   type="checkbox"
                   checked={highlightNew}
@@ -996,6 +994,20 @@ export default function App() {
                   className="w-24"
                 />
                 <span className="text-white text-xs">{lightIntensity.toFixed(1)}x</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <label className="text-white font-semibold text-sm">📏 Cube Size:</label>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={cubeSize}
+                  onChange={(e) => setCubeSize(Number(e.target.value))}
+                  className="w-24"
+                />
+                <span className="text-white text-xs">{cubeSize.toFixed(1)}x</span>
               </div>
               
               <div className="flex gap-1">
@@ -1047,7 +1059,7 @@ export default function App() {
             </div>
             
             <div className="flex flex-wrap gap-3 items-center">
-              <label className="flex items-center gap-2 text-white cursor-pointer bg-blue-600 px-4 py-2 rounded font-semibold">
+              <label className="flex items-center gap-2 text-white cursor-pointer bg-gray-600 px-4 py-2 rounded font-semibold">
                 <input
                   type="checkbox"
                   checked={highlightNew}
@@ -1084,6 +1096,20 @@ export default function App() {
                 <span className="text-white text-xs">{lightIntensity.toFixed(1)}x</span>
               </div>
               
+              <div className="flex items-center gap-2">
+                <label className="text-white font-semibold text-sm">📏 Cube Size:</label>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={cubeSize}
+                  onChange={(e) => setCubeSize(Number(e.target.value))}
+                  className="w-24"
+                />
+                <span className="text-white text-xs">{cubeSize.toFixed(1)}x</span>
+              </div>
+              
               <div className="flex gap-1">
                 <button onClick={() => setView('top')} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white text-xs">Top</button>
                 <button onClick={() => setView('front')} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white text-xs">Front</button>
@@ -1098,9 +1124,9 @@ export default function App() {
       
       <div ref={mountRef} className="flex-1" />
       
-      <div className="bg-gray-900 px-4 py-2 border-t border-gray-700 text-center">
+      <div className="bg-gray-800 px-4 py-1 border-t border-gray-600 text-center">
         <p className="text-gray-400 text-xs">
-          Conway's Game of Life: Strata Edition • {Object.keys(patterns).length}+ patterns with creators • Built with Claude AI
+          Conway's Game of Life: Strata Edition • {Object.keys(patterns).length}+ patterns • Built with Claude AI
         </p>
       </div>
     </div>
