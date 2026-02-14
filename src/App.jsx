@@ -8,7 +8,7 @@ export default function App() {
   const [generation, setGeneration] = useState(0);
   const [speed, setSpeed] = useState(500);
   const [gridSize] = useState(500);
-  const [selectedPattern, setSelectedPattern] = useState('');
+  const [selectedPattern, setSelectedPattern] = useState('glider'); // Start with glider
   const [autoRotate, setAutoRotate] = useState(false);
   const [cubeColor, setCubeColor] = useState('white');
   const [highlightNew, setHighlightNew] = useState(false);
@@ -42,7 +42,7 @@ export default function App() {
   const didDragRef = useRef(false);
   const previousMouseRef = useRef({ x: 0, y: 0 });
   const cameraAngleRef = useRef({ theta: Math.PI / 4, phi: Math.PI / 4 });
-  const cameraDistanceRef = useRef(400);
+  const cameraDistanceRef = useRef(150); // CLOSER - was 400
   const cameraTargetRef = useRef(new THREE.Vector3(0, 0, 0));
 
   const patterns = {
@@ -372,7 +372,7 @@ export default function App() {
 
   const addGenerationLayer = (grid, z) => {
     const scene = sceneRef.current;
-    const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+    const geometry = new THREE.BoxGeometry(5, 5, 5); // MUCH BIGGER - was 0.95
     const isNewestLayer = z === generationRef.current;
     
     for (let x = 0; x < gridSize; x++) {
@@ -416,7 +416,7 @@ export default function App() {
     const scene = sceneRef.current;
     if (!scene) return; // Safety check
     
-    const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+    const geometry = new THREE.BoxGeometry(5, 5, 5); // MUCH BIGGER - was 0.95
     
     setupCubesRef.current.forEach(cube => {
       cube.geometry.dispose();
@@ -693,9 +693,39 @@ export default function App() {
     topLight.position.set(0, 0, 50);
     scene.add(topLight);
     topLightRef.current = topLight;
+    
+    // Add a test cube at origin to verify scene is rendering
+    const testGeometry = new THREE.BoxGeometry(10, 10, 10);
+    const testMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // RED
+    const testCube = new THREE.Mesh(testGeometry, testMaterial);
+    testCube.position.set(0, 0, 0);
+    scene.add(testCube);
+    console.log('Added red test cube at origin (0, 0, 0)');
+    
+    // Add grid helper
+    const gridHelper = new THREE.GridHelper(200, 20, 0x444444, 0x222222);
+    gridHelper.rotation.x = Math.PI / 2;
+    scene.add(gridHelper);
+    console.log('Added grid helper');
 
     gridRef.current = initializeGrid();
     console.log('Scene initialized, grid created');
+    
+    // Load initial glider pattern
+    const glider = patterns['glider'];
+    if (glider) {
+      const offsetX = Math.floor(gridSize / 2) - 20;
+      const offsetY = Math.floor(gridSize / 2) - 20;
+      glider.cells.forEach(([x, y]) => {
+        const gridX = x + offsetX;
+        const gridY = y + offsetY;
+        if (gridX >= 0 && gridX < gridSize && gridY >= 0 && gridY < gridSize) {
+          gridRef.current[gridX][gridY] = 1;
+        }
+      });
+      console.log('Initial glider pattern loaded');
+    }
+    
     updateSetupLayer();
     console.log('Initial setup layer created');
 
@@ -815,7 +845,7 @@ export default function App() {
     updateSetupLayer();
     
     cameraAngleRef.current = { theta: Math.PI / 4, phi: Math.PI / 4 };
-    cameraDistanceRef.current = 400;
+    cameraDistanceRef.current = 150; // CLOSER - was 400
     cameraTargetRef.current.set(0, 0, 0);
     updateCameraPosition();
     
